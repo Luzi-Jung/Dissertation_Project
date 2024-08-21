@@ -1,0 +1,180 @@
+import os
+import subprocess
+import pandas as pd
+from tqdm import tqdm
+import shutil
+
+## Script is for non_community_0, script is repeated with comunity_0 seperately ##
+
+shutil.copy('non_community_0_df.csv', 'non_community_0_df_copy.csv')
+
+# Set necessary environment variable
+os.environ['LD_LIBRARY_PATH'] = os.path.expanduser('~/local/mummer/lib')
+
+# Paths to the required MUMmer tools
+nucmer_path = os.path.expanduser("~/local/mummer/bin/nucmer")
+delta_filter_path = os.path.expanduser("~/local/mummer/bin/delta-filter")
+show_snps_path = os.path.expanduser("~/local/mummer/bin/show-snps")
+
+class Indel:
+    def __init__(self, rstart, qstart, len, type):
+        self.type = type
+        self.len = len
+        self.rstart = rstart
+        self.qstart = qstart
+        if type == "DEL":
+            self.rend = rstart + len
+            self.qend = qstart + 1
+        elif type == "INS":
+            self.rend = rstart + 1
+            self.qend = qstart + len
+
+    def __str__(self):
+        return f"({self.rstart}, {self.rend}, {self.qstart}, {self.qend}, {self.type})"
+
+    def increase_len(self, len_increase):
+        self.len += len_increase
+        if self.type == "DEL":
+            self.rend = self.rstart + self.len
+        elif self.type == "INS":
+            self.qend = self.qstart + self.len
+def run_command(command):
+    """Run a shell command and capture the output."""
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Command failed: {command}\n{result.stderr}")
+    return result.stdout
+def sort_and_update_indels(indels):
+    f_start = lambda indel: indel.qstart
+    f_end = lambda indel: indel.qend
+    indels = sorted(indels, key=f_start)
+    n = len(indels)
+    i = 0
+    while i < n:
+        same_start_matches = [indels[i]]
+        same_start = True
+        j = i + 1
+        while same_start and j < n:
+            if indels[i].rstart == indels[j].rstart:
+                same_start_matches.append(indels[j])
+            else:
+                same_start = False
+            j += 1
+        subsort = sorted(same_start_matches, key=f_end)
+        for k in range(len(subsort)):
+            indels[i + k] = subsort[k]
+        i = i + len(subsort)
+    updated_indels = [indels[0]]
+    for i in range(1, n):
+        if indels[i].type == "INS":
+            extend_indel = updated_indels[-1].rstart == indels[i].rstart and updated_indels[-1].qstart + updated_indels[-1].len == indels[i].qstart
+        else:
+            extend_indel = updated_indels[-1].qstart == indels[i].qstart and updated_indels[-1].rstart + updated_indels[-1].len == indels[i].rstart
+        if extend_indel:
+            updated_indels[-1].increase_len(indels[i].len)
+        else:
+            updated_indels.append(indels[i])
+    return updated_indels
+def get_snp_count(plasmid_1_path, plasmid_2_path, prefix="output"):
+    """Run NUCmer, delta-filter, and show-snps to get the SNP count."""
+    # Run NUCmer
+    nucmer_command = f"{nucmer_path} --diagdiff 20 --breaklen 500 --maxmatch -p {prefix} '{plasmid_1_path}' '{plasmid_2_path}'"
+    run_command(nucmer_command)
+    
+    # Run delta-filter
+    delta_filter_command = f"{delta_filter_path} -1 {prefix}.delta > {prefix}.1delta"
+    run_command(delta_filter_command)
+    
+    # Run show-snps
+    show_snps_command = f"{show_snps_path} -Tr {prefix}.1delta > {prefix}.snps"
+    run_command(show_snps_command)
+    
+    # Parse the SNPs and count excluding indels
+    with open(f"{prefix}.snps") as f:
+        show_snps_output = f.readlines()
+    
+    indels = []
+    snp_count = 0
+    if len(show_snps_output) > 1:
+        for line in show_snps_output:
+            split_line = line.split('\t')
+            if len(split_line) < 4:
+                print(f"Skipping malformed line: {line.strip()}")
+                continue
+            try:
+                rsub = split_line[1].strip()
+                qsub = split_line[2].strip()
+                rstart = int(split_line[0])
+                qstart = int(split_line[3])
+            except (IndexError, ValueError) as e:
+                print(f"Error parsing line: {line.strip()} - {e}")
+                continue
+
+            try:
+                repeated_line = (indels[-1].rstart == rstart and indels[-1].qstart == qstart)
+            except IndexError:
+                repeated_line = False
+            if not repeated_line:
+                if rsub == ".":
+                    type = "INS"
+                    try:
+                        extend_indel = indels[-1].rstart == rstart and indels[-1].qstart + indels[-1].len == qstart
+                    except IndexError:
+                        extend_indel = False
+                    if extend_indel:
+                        indels[-1].increase_len(1)
+                    else:
+                        indels.append(Indel(rstart, qstart, 1, type))
+                elif qsub == ".":
+                    type = "DEL"
+                    try:
+                        extend_indel = indels[-1].qstart == qstart and indels[-1].rstart + indels[-1].len == rstart
+                    except IndexError:
+                        extend_indel = False
+                    if extend_indel:
+                        indels[-1].increase_len(1)
+                    else:
+                        indels.append(Indel(rstart, qstart, 1, type))
+                else:
+                    snp_count += 1  # Count SNPs only
+
+    if len(indels) > 1:
+        indels = sort_and_update_indels(indels)
+
+    return snp_count
+# Path to the CSV file and the contig directory
+csv_file_path = "non_community_0_df_copy.csv"
+contig_directory = "contigs"
+
+def main():
+    # Read the CSV file
+    df = pd.read_csv(csv_file_path)
+    
+    # Ensure the output column exists
+    df['SNPs distance'] = 0
+    
+    for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing plasmids"):
+        plasmid_1_name = row['plasmid_1']
+        plasmid_2_name = row['plasmid_2']
+        
+        # Construct file paths for the plasmids
+        plasmid_1_path = os.path.join(contig_directory, f"{plasmid_1_name}.fa")
+        plasmid_2_path = os.path.join(contig_directory, f"{plasmid_2_name}.fa")
+        
+        # Check if files exist
+        if not os.path.isfile(plasmid_1_path) or not os.path.isfile(plasmid_2_path):
+            print(f"Files not found: {plasmid_1_path}, {plasmid_2_path}")
+            continue
+        
+        try:
+            # Get the SNP count
+            snp_count = get_snp_count(plasmid_1_path, plasmid_2_path)
+            df.at[index, 'SNPs distance'] = snp_count
+        except Exception as e:
+            print(f"Error processing {plasmid_1_name} and {plasmid_2_name}: {e}")
+    
+    # Save the updated CSV file
+    df.to_csv(csv_file_path, index=False)
+
+if __name__ == "__main__":
+    main()
