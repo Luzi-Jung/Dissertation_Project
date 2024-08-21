@@ -1,0 +1,94 @@
+import pandas as pd
+
+# read meta_data and all_pairs_containment_distance
+
+all_plasmids_distances = pd.read_csv('all_plasmids_distances.csv')
+meta_df = pd.read_csv('3499-light-4-July.csv', low_memory=False)
+
+#from meta_data get list of plasmids and community, sub_community, mobtyper_size, number_resistance_genes, mobility
+#to new file copy: id, pling_community, pling typing, mobtyper_size (kb), mobtyper_predicted_mobility, hybrid_ass_kleborate_num_resistance_genes
+columns_to_copy = [
+    'id', 'pling_community', 'pling typing', 
+    'mobtyper_size (kb)', 'mobtyper_predicted_mobility', 
+    'hybrid_ass_kleborate_num_resistance_genes'
+]
+
+# Creating a new dataframe with the specified columns
+new_df = meta_df[columns_to_copy]
+print(new_df)
+
+#Make copy of all_pairs_containment_distance
+copy_all_plasmids_distances = all_plasmids_distances.copy()
+
+#make column plasmid_1_community, plasmid_2_commmunity, plasmid_1_subcommunity, plasmid_2_subcommunity, plasmid_1_mobility, plasmid_2_mobility, plasmid_1_mobtyper_size, plasmid_2_mobtyper_size, plasmid_1_number_resistance_genes, plasmid_2_number_resistance_genes
+new_columns = [
+    'plasmid_1_community', 'plasmid_2_commmunity', 'plasmid_1_subcommunity',
+    'plasmid_2_subcommunity', 'plasmid_1_mobility', 'plasmid_2_mobility',
+    'plasmid_1_mobtyper_size', 'plasmid_2_mobtyper_size',
+    'plasmid_1_number_resistance_genes', 'plasmid_2_number_resistance_genes'
+]
+
+for column in new_columns:
+    copy_all_plasmids_distances[column] = None
+
+#print(copy_all_pairs_containment_distance)
+#from new_df copy information to copy_all_pairs_containment_distance 
+
+for index, row in copy_all_plasmids_distances.iterrows():
+    plasmid_1_id = row['plasmid_1']
+    plasmid_1_meta = new_df[new_df['id'] == plasmid_1_id]
+
+    if not plasmid_1_meta.empty:
+        copy_all_plasmids_distances.at[index, 'plasmid_1_community'] = plasmid_1_meta.iloc[0]['pling_community']
+        copy_all_plasmids_distances.at[index, 'plasmid_1_subcommunity'] = plasmid_1_meta.iloc[0]['pling typing']
+        copy_all_plasmids_distances.at[index, 'plasmid_1_mobility'] = plasmid_1_meta.iloc[0]['mobtyper_predicted_mobility']
+        copy_all_plasmids_distances.at[index, 'plasmid_1_mobtyper_size'] = plasmid_1_meta.iloc[0]['mobtyper_size (kb)']
+        copy_all_plasmids_distances.at[index, 'plasmid_1_number_resistance_genes'] = plasmid_1_meta.iloc[0]['hybrid_ass_kleborate_num_resistance_genes']
+
+# Merging data from meta_data into copy_all_pairs_containment_distance for plasmid_2
+for index, row in copy_all_plasmids_distances.iterrows():
+    plasmid_2_id = row['plasmid_2']
+    plasmid_2_meta = new_df[new_df['id'] == plasmid_2_id]
+
+    if not plasmid_2_meta.empty:
+        copy_all_plasmids_distances.at[index, 'plasmid_2_commmunity'] = plasmid_2_meta.iloc[0]['pling_community']
+        copy_all_plasmids_distances.at[index, 'plasmid_2_subcommunity'] = plasmid_2_meta.iloc[0]['pling typing']
+        copy_all_plasmids_distances.at[index, 'plasmid_2_mobility'] = plasmid_2_meta.iloc[0]['mobtyper_predicted_mobility']
+        copy_all_plasmids_distances.at[index, 'plasmid_2_mobtyper_size'] = plasmid_2_meta.iloc[0]['mobtyper_size (kb)']
+        copy_all_plasmids_distances.at[index, 'plasmid_2_number_resistance_genes'] = plasmid_2_meta.iloc[0]['hybrid_ass_kleborate_num_resistance_genes']
+
+# Displaying the updated dataframe
+print(copy_all_plasmids_distances)
+
+# Remove rows with '-' in the specified columns
+copy_all_plasmids_distances = copy_all_plasmids_distances[
+    (copy_all_plasmids_distances['plasmid_1_community'] != '-') &
+    (copy_all_plasmids_distances['plasmid_2_commmunity'] != '-') &
+    (copy_all_plasmids_distances['plasmid_1_subcommunity'] != '-') &
+    (copy_all_plasmids_distances['plasmid_2_subcommunity'] != '-')
+]
+
+
+#If plasmid_1_community, plasmid_2_commmunity are the same keep, if not delete
+copy_all_plasmids_distances = copy_all_plasmids_distances[
+    copy_all_plasmids_distances['plasmid_1_community'] == copy_all_plasmids_distances['plasmid_2_commmunity']
+]
+
+print(copy_all_plasmids_distances)
+copy_all_plasmids_distances.to_csv('copy_all_plasmids_distances.csv', index=False)
+
+# Make seperate df for community_0 and the rest, community_0 is unassigned plasmids and large so nucmer takes v. longtime to run
+
+# Filter out rows with community 0 and store them in a separate DataFrame
+community_0_df = copy_all_plasmids_distances[copy_all_plasmids_distances['plasmid_1_community'] == 'community_0']
+
+# Filter out rows that are not community 0 and store them in another DataFrame
+non_community_0_df = copy_all_plasmids_distances[copy_all_plasmids_distances['plasmid_1_community'] != 'community_0']
+
+# Save the community_0_df to a CSV file
+community_0_csv_file_name = "community_0_df.csv"
+community_0_df.to_csv(community_0_csv_file_name, index=False)
+
+# Save the non_community_0_df to a CSV file
+non_community_0_csv_file_name = "non_community_0_df.csv"
+non_community_0_df.to_csv(non_community_0_csv_file_name, index=False)
