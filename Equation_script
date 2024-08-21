@@ -1,0 +1,81 @@
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+# Read the CSV file
+non_community_0_df = pd.read_csv('community_0_df_copy.csv') ## Change to non_community_0_df and rerun script ##
+all_pairs_containment_distance = pd.read_csv('all_pairs_containment_distance.csv')
+
+#non_community_0_df.drop(columns=['new_distance', 'length', 'overall_SNPs'], inplace=True)
+non_community_0_df.to_csv('updated_non_community_0_df.csv', index=False)
+
+# copy distance column into non_community_0
+
+def add_distance_column(all_pairs_containment_distance, non_community_0_df):
+    # Create a copy of non_community_0_df to avoid modifying the original dataframe
+    non_community_0_df = non_community_0_df.copy()
+
+    # Initialize a new column in non_community_0_df for the new distance values
+    non_community_0_df['containment_distance'] = 0.0
+
+    # Create a dictionary for quick lookup of distances in all_pairs_containment_distance
+    df1_dict = {(row['plasmid_1'], row['plasmid_2']): row['distance'] for _, row in all_pairs_containment_distance.iterrows()}
+
+    # Iterate over each row in non_community_0_df and add the distance from all_pairs_containment_distance if the conditions are met
+    for idx, row in non_community_0_df.iterrows():
+        key = (row['plasmid_1'], row['plasmid_2'])
+        if key in df1_dict:
+            non_community_0_df.at[idx, 'containment_distance'] = float(df1_dict[key])
+
+    return non_community_0_df
+
+# Example usage
+all_pairs_containment_distance = pd.read_csv('all_pairs_containment_distance.csv')
+non_community_0_df = pd.read_csv('community_0_df_copy.csv')
+updated_non_community_0_df = add_distance_column(all_pairs_containment_distance, non_community_0_df)
+
+# Display the updated DataFrame
+updated_non_community_0_df.head()
+
+updated_non_community_0_df.to_csv('updated_community_0_df.csv', index=False)
+
+# Read the CSV file
+non_community_0_df = pd.read_csv('updated_community_0_df.csv')
+
+#distance x smaller plasmid length
+
+def compute_length(row):
+    p1_size = row['plasmid_1_mobtyper_size']
+    p2_size = row['plasmid_2_mobtyper_size']
+    smaller_size = min(p1_size, p2_size) * 1000
+    return row['containment_distance'] * smaller_size
+
+# Apply function to each row and store the result in a new column
+non_community_0_df['length'] = non_community_0_df.apply(compute_length, axis=1)
+
+print(non_community_0_df)
+
+#SNP distance / length = SNPs distance withhout overexpressed indel volume
+
+non_community_0_df['overall_SNPs'] = non_community_0_df['SNPs distance'] / non_community_0_df['length']
+
+print(updated_non_community_0_df)
+
+import numpy as np
+# Replace NaN and infinite values in 'overall_SNPs' with 0
+non_community_0_df['overall_SNPs'] = non_community_0_df['overall_SNPs'].replace([np.inf, -np.inf], 0).fillna(0)
+
+#plot new SNPs distance in graph. Save to csv file to be used i sub_community_graphs script
+
+non_community_0_df.to_csv('updated_community_0_df.csv', index=False)
+
+# Remove rows with '-' in the specified columns
+updated_non_community_0_df = updated_non_community_0_df[
+    (updated_non_community_0_df['plasmid_1_community'] != '_') &
+    (updated_non_community_0_df['plasmid_2_commmunity'] != '_') &
+    (updated_non_community_0_df['plasmid_1_subcommunity'] != '_') &
+    (updated_non_community_0_df['plasmid_2_subcommunity'] != '_')
+]
+
+updated_non_community_0_df.to_csv('updated_non_community_0_df.csv', index=False)
