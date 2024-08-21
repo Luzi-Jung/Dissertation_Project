@@ -1,0 +1,45 @@
+import pandas as pd
+
+# Add in csv files
+meta_df = pd.read_csv('3499-light-4-July.csv', low_memory=False)
+updated_non_community_0_df = pd.read_csv('all_communities_df.csv', low_memory=False)
+
+# to updated_non_community_0_df add empty columns: 
+
+new_columns = [
+    'plasmid_1_mobtyper_rep_type(s)', 'plasmid_2_mobtyper_rep_type(s)', 
+    'plasmid_1_mobtyper_relaxase_type(s)', 'plasmid_2_mobtyper_relaxase_type(s)', 
+    'plasmid_1_mobtyper_orit_type(s)', 'plasmid_2_mobtyper_orit_type(s)', 
+    'plasmid_1_plasmidfinder_replicons', 'plasmid_2_plasmidfinder_replicons'
+]
+
+for column in new_columns:
+    updated_non_community_0_df[column] = None
+    
+# update df with data from meta_df
+
+for index, row in updated_non_community_0_df.iterrows():
+    plasmid_1_id = row['plasmid_1']
+    plasmid_2_id = row['plasmid_2']
+
+    # get plasmid 1 data
+    plasmid_1_meta = meta_df[meta_df['id'] == plasmid_1_id]
+    if not plasmid_1_meta.empty:
+        updated_non_community_0_df.at[index, 'plasmid_1_mobtyper_rep_type(s)'] = plasmid_1_meta.iloc[0]['mobtyper_rep_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_1_mobtyper_relaxase_type(s)'] = plasmid_1_meta.iloc[0]['mobtyper_relaxase_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_1_mobtyper_orit_type(s)'] = plasmid_1_meta.iloc[0]['mobtyper_orit_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_1_plasmidfinder_replicons'] = plasmid_1_meta.iloc[0]['plasmidfinder_replicons']
+    
+    # get plasmid 2 data
+    plasmid_2_meta = meta_df[meta_df['id'] == plasmid_2_id]
+    if not plasmid_2_meta.empty:
+        updated_non_community_0_df.at[index, 'plasmid_2_mobtyper_rep_type(s)'] = plasmid_2_meta.iloc[0]['mobtyper_rep_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_2_mobtyper_relaxase_type(s)'] = plasmid_2_meta.iloc[0]['mobtyper_relaxase_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_2_mobtyper_orit_type(s)'] = plasmid_2_meta.iloc[0]['mobtyper_orit_type(s)']
+        updated_non_community_0_df.at[index, 'plasmid_2_plasmidfinder_replicons'] = plasmid_2_meta.iloc[0]['plasmidfinder_replicons']
+        
+# Displaying the updated dataframe
+print(updated_non_community_0_df)
+
+#save to csv file
+updated_non_community_0_df.to_csv('rep_n_relax_all_df.csv', index=False)
