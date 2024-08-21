@@ -1,0 +1,13 @@
+# Combine updated_community_0_df.csv and updated_non_community_0_df.csv
+
+import pandas as pd
+
+df1 = pd.read_csv('updated_community_0_df.csv')
+
+df2 = pd.read_csv('updated_non_community_0_df.csv')
+
+# Combine datasets
+combined_df = pd.concat([df1, df2], ignore_index=True)
+
+# Save to CSV file
+combined_df.to_csv('all_communities_df.csv', index=False)
