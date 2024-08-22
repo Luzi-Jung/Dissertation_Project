@@ -1,0 +1,103 @@
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(patchwork)
+
+# Load your dataset
+meta_df <- read_csv("/Users/luzijungmayr/Desktop/Stuff/University Msc/Research Project 2/Project/3499-light-4-July.csv")
+
+# Calculate Resistance Genes per 10Kb
+meta_df <- meta_df %>%
+  mutate(Resistance_Genes_Per_10Kb = (hybrid_ass_kleborate_num_resistance_genes / `mobtyper_size (kb)`) * 10)
+
+# Summarize the data by Mobility Type, calculating the total and standard deviation of Resistance_Genes_Per_10Kb
+summary_df <- meta_df %>%
+  group_by(mobtyper_predicted_mobility) %>%
+  summarise(
+    total_Resistance_Genes_Per_10Kb = sum(Resistance_Genes_Per_10Kb, na.rm = TRUE),
+    sd_Resistance_Genes_Per_10Kb = sd(Resistance_Genes_Per_10Kb, na.rm = TRUE)
+  )
+
+# Create the bar plot with error bars and different colors for each bar
+ggplot(summary_df, aes(x = mobtyper_predicted_mobility, y = total_Resistance_Genes_Per_10Kb, fill = mobtyper_predicted_mobility)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = total_Resistance_Genes_Per_10Kb - sd_Resistance_Genes_Per_10Kb, ymax = total_Resistance_Genes_Per_10Kb + sd_Resistance_Genes_Per_10Kb), width = 0.2) +
+  scale_fill_brewer(palette = "Set1") +  # Change color palette as needed
+  labs(title = "Total Resistance Genes per 10Kb by Mobility Type",
+       x = "Mobility Type",
+       y = "Total Resistance Genes per 10Kb") +
+  theme_minimal()
+
+gene_columns <- c("contig_kleborate_AGly_acquired", "contig_kleborate_Col_acquired", "contig_kleborate_Fcyn_acquired", "contig_kleborate_Flq_acquired", "contig_kleborate_Gly_acquired", "contig_kleborate_MLS_acquired", "contig_kleborate_Phe_acquired", "contig_kleborate_Rif_acquired", "contig_kleborate_Sul_acquired", "contig_kleborate_Sul_acquired", "contig_kleborate_Tgc_acquired", "contig_kleborate_Tmt_acquired", "contig_Bla_all_merged")
+
+# Define function to calculate genes per 10 kb
+calculate_genes_per_10kb <- function(df, column_name) {
+  df %>%
+    select(mobtyper_predicted_mobility, `mobtyper_size (kb)`, !!sym(column_name)) %>%
+    separate_rows(!!sym(column_name), sep = ";") %>%
+    filter(!!sym(column_name) != "") %>%
+    group_by(mobtyper_predicted_mobility, `mobtyper_size (kb)`) %>%
+    summarise(num_genes = n(), .groups = 'drop') %>%
+    mutate(genes_per_10kb = (num_genes / `mobtyper_size (kb)`) * 10) %>%
+    ungroup() 
+}
+
+# Function to calculate summary statistics 
+summary_stats <- function(df) {
+  df %>%
+    group_by(mobtyper_predicted_mobility) %>%
+    summarise(
+      mean_genes_per_10kb = mean(genes_per_10kb, na.rm = TRUE),
+      sd_genes_per_10kb = sd(mean_genes_per_10kb, na.rm = TRUE),
+      n = n(),
+      sem_genes_per_10kb = sd_genes_per_10kb / sqrt(n),
+      .groups = 'drop'
+    )
+}
+
+# Initialize an empty list to store plots
+plot_list <- list()
+
+# Loop through each gene column to create bar plots
+for (gene_col in gene_columns) {
+  genes_per_10kb_df <- calculate_genes_per_10kb(meta_data, gene_col)
+  stats_df <- summary_stats(genes_per_10kb_df)
+  
+  # Only proceed if there are genes in the column
+  if (nrow(genes_per_10kb_df) > 0) {
+    # Create the bar plot with error bars and individual points
+    p <- ggplot(stats_df, aes(x = mobtyper_predicted_mobility, y = mean_genes_per_10kb, fill = mobtyper_predicted_mobility)) +
+      geom_bar(stat = "identity", position = "dodge", width = 0.6) +
+      geom_errorbar(aes(ymin = mean_genes_per_10kb - sem_genes_per_10kb, ymax = mean_genes_per_10kb + sem_genes_per_10kb), 
+                    width = 0.2, position = position_dodge(0.6)) +
+      geom_jitter(data = genes_per_10kb_df, aes(x = mobtyper_predicted_mobility, y = genes_per_10kb, color = mobtyper_predicted_mobility), 
+                  position = position_jitter(width = 0.2, height = 0), size = 1.5, alpha = 0.8) +
+      labs(title = paste("Genes per 10Kb for", gene_col),
+           x = "Mobility Type",
+           y = "Resistance Genes per 10Kb") +
+      theme_minimal() +
+      scale_fill_brewer(palette = "Set1") +
+      scale_color_brewer(palette = "Set1") +
+      theme(axis.text.x = element_blank(),  
+            axis.ticks.x = element_blank())
+    
+    # Add the plot to the list
+    plot_list[[gene_col]] <- p
+  }
+}
+
+# Combine all plots into one large plot, only if there are any plots
+if (length(plot_list) > 0) {
+  # Display the combined plot
+  combined_plot <- wrap_plots(plot_list, ncol = 3)  # Adjust ncol for number of columns
+  print(combined_plot)
+  
+  # Display each plot separately
+  for (p in plot_list) {
+    print(p)
+  }
+} else {
+  cat("No genes were found in the specified columns, so no plots were generated.\n")
+}
