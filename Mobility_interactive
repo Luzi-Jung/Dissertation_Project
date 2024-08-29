@@ -74,10 +74,10 @@ for _, row in non_community_0_df.iterrows():
 
 # Customize the plot
 fig.update_layout(
-    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunities',
+    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunities Mobility Types',
     xaxis_title='SNP Distance',
-    yaxis_title='DCJ-indel Distance',
-    legend_title_text='Subcommunities', 
+    yaxis_title='DCJ-Indel Distance',
+    legend_title_text='Mobility', 
     legend=legend_layout,
     margin=right_margin
 )
@@ -87,7 +87,7 @@ full_range_html = os.path.join(output_folder, 'all_subcommunities_mobility.html'
 pio.write_html(fig, file=full_range_html, auto_open=False)
 
 ## PLOT 2 ##
-# Create the figure for the limited x-axis plot (SNP Distance ≤ 10)
+# Create the figure for the limited x-axis plot
 fig = go.Figure()
 
 # Plot all data points for each subcommunity with limited x-axis
@@ -123,11 +123,11 @@ for _, row in non_community_0_df.iterrows():
 
 # Customize the plot
 fig.update_layout(
-    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunity Replicons (SNP Distance ≤ 10)',
+    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunity Mobility Types',
     xaxis_title='SNP Distance',
     yaxis_title='DCJ-indel Distance',
     xaxis=dict(range=[0, 10]),
-    legend_title_text='Subcommunities', 
+    legend_title_text='Mobility', 
     legend=legend_layout,
     margin=right_margin
 )
@@ -173,11 +173,11 @@ for _, row in non_community_0_df.iterrows():
 
 # Customize the plot
 fig.update_layout(
-    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunity Replicons (SNP Distance ≤ 0.5)',
+    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunity Mobility Types',
     xaxis_title='SNP Distance',
     yaxis_title='DCJ-indel Distance',
     xaxis=dict(range=[0, 0.5]),
-    legend_title_text='Subcommunities', 
+    legend_title_text='Mobility', 
     legend=legend_layout,
     margin=right_margin
 )
