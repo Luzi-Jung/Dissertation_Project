@@ -1,7 +1,7 @@
 # Dissertation_Project
-This repository is for presenting code used for my Masters dissertation project. 
+This repository is for presenting code used to complete my Masters dissertation project. 
 
-Interactive plots are in Graphs.zip file  
+Interactive plots are in Graphs.zip file.
 
 Scripts should be ran in the following order:
 1. Preprocessing_script
