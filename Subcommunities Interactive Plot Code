@@ -112,6 +112,3 @@ create_plot(
 )
 
 print(f"Plots have been saved as HTML files in the '{output_folder}' directory.")
-pio.write_html(fig, file=full_range_html, auto_open=False)
-
-print(f"Plots have been saved as HTML files in the '{output_folder}' directory.")
