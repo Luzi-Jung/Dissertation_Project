@@ -1,0 +1,114 @@
+import os
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.io as pio
+import plotly.colors
+
+# Read the CSV file
+non_community_0_df = pd.read_csv('rep_n_relax_non_0_df.csv')
+
+# Replace NaN and infinite values in 'overall_SNPs' with 0
+non_community_0_df['overall_SNPs'] = non_community_0_df['overall_SNPs'].replace([np.inf, -np.inf], 0).fillna(0)
+
+# Delete rows where plasmid_1_subcommunity and plasmid_2_subcommunity don't match
+non_community_0_df = non_community_0_df[non_community_0_df['plasmid_1_subcommunity'] == non_community_0_df['plasmid_2_subcommunity']]
+
+# Get unique mobility types
+mobility_types = non_community_0_df[['plasmid_1_mobility', 'plasmid_2_mobility']].melt()['value'].unique()
+
+# Create a color map for mobility types using the Viridis sequential color palette
+colors = ['#FF0000', '#0000FF', '#00FF00']  # Red, Blue, Green
+color_dict = {mobility: colors[i % len(colors)] for i, mobility in enumerate(mobility_types)}
+
+# Normalize sizes using P1_mobtyper_size (kb) and P2_mobtyper_size (kb)
+non_community_0_df['size_1_norm'] = 200 * (non_community_0_df['plasmid_1_mobtyper_size'] - non_community_0_df['plasmid_1_mobtyper_size'].min()) / (non_community_0_df['plasmid_1_mobtyper_size'].max() - non_community_0_df['plasmid_1_mobtyper_size'].min()) + 50
+non_community_0_df['size_2_norm'] = 200 * (non_community_0_df['plasmid_2_mobtyper_size'] - non_community_0_df['plasmid_2_mobtyper_size'].min()) / (non_community_0_df['plasmid_2_mobtyper_size'].max() - non_community_0_df['plasmid_2_mobtyper_size'].min()) + 50
+
+# Set output folder
+output_folder = 'subcommunity_plots_mobility_12'
+os.makedirs(output_folder, exist_ok=True)
+
+# Function to create plots with a custom legend
+def create_plot(fig, x_range=None, title='', file_name=''):
+    # Plot all data points for each subcommunity
+    for _, row in non_community_0_df.iterrows():
+        if pd.isna(row['overall_SNPs']) or pd.isna(row['distance']) or pd.isna(row['size_1_norm']) or pd.isna(row['size_2_norm']):
+            continue
+
+        if x_range and row['overall_SNPs'] > x_range[1]:
+            continue
+
+        hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Replicon Type: {row['plasmid_2_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_2_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_2_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_2_mobility']}"
+        hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Replicon Type: {row['plasmid_1_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_1_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_1_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_1_mobility']}"
+
+        fig.add_trace(go.Scatter(
+            x=[row['overall_SNPs']],
+            y=[row['distance']],
+            mode='markers',
+            marker=dict(size=row['size_2_norm'] * 0.1, color=color_dict[row['plasmid_2_mobility']], symbol='triangle-up', line=dict(width=1, color='black')),
+            name=row['plasmid_2_mobility'],
+            hovertext=hover_text_2,
+            showlegend=False  # Hide individual markers from legend
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=[row['overall_SNPs']],
+            y=[row['distance']],
+            mode='markers',
+            marker=dict(size=row['size_1_norm'] * 0.1, color=color_dict[row['plasmid_1_mobility']], symbol='circle', line=dict(width=1, color='black')),
+            name=row['plasmid_1_mobility'],
+            hovertext=hover_text_1,
+            showlegend=False  # Hide individual markers from legend
+        ))
+
+    # Add custom legend for all mobility types
+    for mobility, color in color_dict.items():
+        fig.add_trace(go.Scatter(
+            x=[None],  # No actual data points, just for legend
+            y=[None],  # No actual data points, just for legend
+            mode='markers',
+            marker=dict(size=15, color=color),
+            name=mobility,
+            showlegend=True
+        ))
+
+    # Customize the plot
+    fig.update_layout(
+        title=title,
+        xaxis_title='SNP Distance',
+        yaxis_title='DCJ-Indel Distance',
+        xaxis=dict(range=x_range) if x_range else None,
+        legend_title_text='Mobility Type'
+    )
+
+    # Save the plot as an HTML file
+    pio.write_html(fig, file=os.path.join(output_folder, file_name), auto_open=False)
+
+# PLOT 1: Full range plot
+fig1 = go.Figure()
+create_plot(
+    fig=fig1,
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Mobility Type',
+    file_name='all_subcommunities_mobility.html'
+)
+
+# PLOT 2: Limited x-axis plot (SNP Distance ≤ 2)
+fig2 = go.Figure()
+create_plot(
+    fig=fig2,
+    x_range=[0, 2],
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Mobility Type (SNP Distance ≤ 2)',
+    file_name='all_subcommunities_mobility_0_to_2.html'
+)
+
+# PLOT 3: Limited x-axis plot (SNP Distance ≤ 50)
+fig3 = go.Figure()
+create_plot(
+    fig=fig3,
+    x_range=[0, 50],
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Mobility Type (SNP Distance ≤ 50)',
+    file_name='all_subcommunities_mobility_0_to_50.html'
+)
+
+print(f"Plots have been saved as HTML files in the '{output_folder}' directory.")
