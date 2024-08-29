@@ -1,0 +1,93 @@
+import dask.dataframe as dd
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+import seaborn as sns
+import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
+
+# Load the data using Dask
+data = dd.read_csv('rep_n_relax_non_0_df.csv')
+
+# Filter the data
+data = data[data['plasmid_1_subcommunity'] == data['plasmid_2_subcommunity']]
+data['overall_SNPs'] = data['overall_SNPs'].replace([np.inf, -np.inf], 0).fillna(0)
+
+# Delete rows where plasmid_1_subcommunity and plasmid_2_subcommunity don't match
+data = data[data['plasmid_1_subcommunity'] == data['plasmid_2_subcommunity']]
+
+def filter_data(data, min_count):
+    # Compute the subcommunity counts
+    subcommunity_counts = data['plasmid_1_subcommunity'].value_counts().compute()
+
+    # Filter subcommunities that appear at least min_count times
+    filtered_subcommunities = subcommunity_counts[subcommunity_counts >= min_count].index.tolist()
+
+    # Use isin with a list of filtered subcommunities
+    return data[data['plasmid_1_subcommunity'].isin(filtered_subcommunities)]
+
+def calculate_feature_importance(subcommunity1, subcommunity2, data, direction):
+    data1 = data[data['plasmid_1_subcommunity'] == subcommunity1].compute()
+    data2 = data[data['plasmid_1_subcommunity'] == subcommunity2].compute()
+    
+    combined_data = pd.merge(data1, data2, on='overall_SNPs', suffixes=('_1', '_2'))
+    
+    if combined_data.empty:
+        return (subcommunity1, subcommunity2, 0, direction)
+    
+    if direction == 'snp_to_score':
+        X = combined_data[['overall_SNPs']]
+        y = combined_data['distance_1']
+    else:  # 'score_to_snp'
+        X = combined_data[['distance_1']]
+        y = combined_data['overall_SNPs']
+    
+    if X.empty or y.empty:
+        return (subcommunity1, subcommunity2, 0, direction)
+    
+    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf.fit(X, y)
+    
+    feature_importance = rf.feature_importances_[0] if len(rf.feature_importances_) > 0 else 0
+    return (subcommunity1, subcommunity2, feature_importance, direction)
+
+def create_heatmaps(filtered_data, title_suffix):
+    subcommunities = filtered_data['plasmid_1_subcommunity'].unique().compute()
+    
+    fi_matrix_snp_to_score = pd.DataFrame(np.zeros((len(subcommunities), len(subcommunities))), index=subcommunities, columns=subcommunities)
+    fi_matrix_score_to_snp = pd.DataFrame(np.zeros((len(subcommunities), len(subcommunities))), index=subcommunities, columns=subcommunities)
+    
+    results = Parallel(n_jobs=8)(delayed(calculate_feature_importance)(subcommunity1, subcommunity2, filtered_data, direction) 
+                                  for i, subcommunity1 in enumerate(subcommunities) 
+                                  for j, subcommunity2 in enumerate(subcommunities) 
+                                  if i <= j 
+                                  for direction in ['snp_to_score', 'score_to_snp'])
+    
+    for subcommunity1, subcommunity2, feature_importance, direction in results:
+        if direction == 'snp_to_score':
+            fi_matrix_snp_to_score.at[subcommunity1, subcommunity2] = feature_importance
+            fi_matrix_snp_to_score.at[subcommunity2, subcommunity1] = feature_importance  
+        else:
+            fi_matrix_score_to_snp.at[subcommunity1, subcommunity2] = feature_importance
+            fi_matrix_score_to_snp.at[subcommunity2, subcommunity1] = feature_importance  
+    
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(fi_matrix_snp_to_score, annot=True, cmap='coolwarm', linewidths=.5)
+    plt.title(f'Heatmap of Feature Importance Values (SNPs to DCJ-indel) - {title_suffix}')
+    plt.xlabel('Subcommunity')
+    plt.ylabel('Subcommunity')
+    plt.show()
+    
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(fi_matrix_score_to_snp, annot=True, cmap='coolwarm', linewidths=.5)
+    plt.title(f'Heatmap of Feature Importance Values (DCJ-indel to SNPs) - {title_suffix}')
+    plt.xlabel('Subcommunity')
+    plt.ylabel('Subcommunity')
+    plt.show()
+
+# Filter and create heatmaps for subcommunities appearing 2+ times
+filtered_data_2 = filter_data(data, 2)
+create_heatmaps(filtered_data_2, "2+ Appearances")
+
+# Filter and create heatmaps for subcommunities appearing 10+ times
+filtered_data_10 = filter_data(data, 10)
+create_heatmaps(filtered_data_10, "10+ Appearances")
