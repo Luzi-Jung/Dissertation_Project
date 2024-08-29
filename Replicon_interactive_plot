@@ -1,12 +1,9 @@
-# Replcion Interactive plot script
-
 import os
 import pandas as pd
-import plotly.express as px
+import numpy as np
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.colors
-import numpy as np
 
 # Read the CSV file
 non_community_0_df = pd.read_csv('rep_n_relax_non_0_df.csv')
@@ -17,123 +14,101 @@ non_community_0_df['overall_SNPs'] = non_community_0_df['overall_SNPs'].replace(
 # Delete rows where plasmid_1_subcommunity and plasmid_2_subcommunity don't match
 non_community_0_df = non_community_0_df[non_community_0_df['plasmid_1_subcommunity'] == non_community_0_df['plasmid_2_subcommunity']]
 
-# Extract unique types from plasmid_1_mobtyper_rep_type(s) and plasmid_2_mobtyper_rep_type(s)
-unique_rep_types_1 = non_community_0_df['plasmid_1_mobtyper_rep_type(s)'].unique()
-unique_rep_types_2 = non_community_0_df['plasmid_2_mobtyper_rep_type(s)'].unique()
+# Get unique replicon types
+replicon_types = non_community_0_df[['plasmid_1_mobtyper_rep_type(s)', 'plasmid_2_mobtyper_rep_type(s)']].melt()['value'].unique()
 
-# Combine the unique types and remove duplicates
-unique_rep_types = list(set(unique_rep_types_1).union(set(unique_rep_types_2)))
-
-# Create a color map for the unique rep types using Plotly's Viridis color palette
+# Create a color map for replicon types using the Viridis sequential color palette
 colors = plotly.colors.sequential.Viridis
-color_dict = {rep_type: colors[i % len(colors)] for i, rep_type in enumerate(unique_rep_types)}
+color_dict = {replicon: colors[i % len(colors)] for i, replicon in enumerate(replicon_types)}
 
 # Normalize sizes using P1_mobtyper_size (kb) and P2_mobtyper_size (kb)
 non_community_0_df['size_1_norm'] = 200 * (non_community_0_df['plasmid_1_mobtyper_size'] - non_community_0_df['plasmid_1_mobtyper_size'].min()) / (non_community_0_df['plasmid_1_mobtyper_size'].max() - non_community_0_df['plasmid_1_mobtyper_size'].min()) + 50
 non_community_0_df['size_2_norm'] = 200 * (non_community_0_df['plasmid_2_mobtyper_size'] - non_community_0_df['plasmid_2_mobtyper_size'].min()) / (non_community_0_df['plasmid_2_mobtyper_size'].max() - non_community_0_df['plasmid_2_mobtyper_size'].min()) + 50
 
 # Set output folder
-output_folder = 'subcommunity_plot_all_Inc_interactive_5'
+output_folder = 'subcommunity_plots_replicon_12'
 os.makedirs(output_folder, exist_ok=True)
 
-# Legend layout settings
-legend_layout = dict(x=1.05, y=0.5, bordercolor="Black", borderwidth=1)
-right_margin = dict(r=150)
+# Function to create plots with a custom legend
+def create_plot(fig, x_range=None, title='', file_name=''):
+    # Plot all data points for each subcommunity
+    for _, row in non_community_0_df.iterrows():
+        if pd.isna(row['overall_SNPs']) or pd.isna(row['distance']) or pd.isna(row['size_1_norm']) or pd.isna(row['size_2_norm']):
+            continue
 
-## PLOT 1 ##
-# Create the figure for the full range plot
-fig = go.Figure()
+        if x_range and row['overall_SNPs'] > x_range[1]:
+            continue
 
-# Plot all data points for each rep type
-for _, row in non_community_0_df.iterrows():
-    if pd.isna(row['overall_SNPs']) or pd.isna(row['distance']) or pd.isna(row['size_1_norm']) or pd.isna(row['size_2_norm']):
-        continue
+        hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Replicon Type: {row['plasmid_2_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_2_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_2_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_2_mobility']}"
+        hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Replicon Type: {row['plasmid_1_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_1_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_1_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_1_mobility']}"
 
-    hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Rep Type: {row['plasmid_2_mobtyper_rep_type(s)']}"
-    hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Rep Type: {row['plasmid_1_mobtyper_rep_type(s)']}"
+        fig.add_trace(go.Scatter(
+            x=[row['overall_SNPs']],
+            y=[row['distance']],
+            mode='markers',
+            marker=dict(size=row['size_2_norm'] * 0.1, color=color_dict[row['plasmid_2_mobtyper_rep_type(s)']], symbol='triangle-up', line=dict(width=1, color='black')),
+            name=row['plasmid_2_mobtyper_rep_type(s)'],
+            hovertext=hover_text_2,
+            showlegend=False  # Hide individual markers from legend
+        ))
 
-    fig.add_trace(go.Scatter(
-        x=[row['overall_SNPs']],
-        y=[row['distance']],
-        mode='markers',
-        marker=dict(size=row['size_2_norm'] * 0.1, color=color_dict.get(row['plasmid_2_mobtyper_rep_type(s)'], 'grey'), symbol='triangle-up', line=dict(width=1, color='black')),
-        name=row['plasmid_2_mobtyper_rep_type(s)'],
-        hovertext=hover_text_2,
-        showlegend=True
-    ))
+        fig.add_trace(go.Scatter(
+            x=[row['overall_SNPs']],
+            y=[row['distance']],
+            mode='markers',
+            marker=dict(size=row['size_1_norm'] * 0.1, color=color_dict[row['plasmid_1_mobtyper_rep_type(s)']], symbol='circle', line=dict(width=1, color='black')),
+            name=row['plasmid_1_mobtyper_rep_type(s)'],
+            hovertext=hover_text_1,
+            showlegend=False  # Hide individual markers from legend
+        ))
 
-    fig.add_trace(go.Scatter(
-        x=[row['overall_SNPs']],
-        y=[row['distance']],
-        mode='markers',
-        marker=dict(size=row['size_1_norm'] * 0.1, color=color_dict.get(row['plasmid_1_mobtyper_rep_type(s)'], 'grey'), symbol='circle', line=dict(width=1, color='black')),
-        name=row['plasmid_1_mobtyper_rep_type(s)'],
-        hovertext=hover_text_1,
-        showlegend=True
-    ))
+    # Add custom legend for all replicon types
+    for replicon, color in color_dict.items():
+        fig.add_trace(go.Scatter(
+            x=[None],  # No actual data points, just for legend
+            y=[None],  # No actual data points, just for legend
+            mode='markers',
+            marker=dict(size=15, color=color),
+            name=replicon,
+            showlegend=True
+        ))
 
-# Customize the plot
-fig.update_layout(
-    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunities',
-    xaxis_title='SNP Distance',
-    yaxis_title='DCJ-indel Distance',
-    legend_title_text='Rep Types',
-    legend=legend_layout,
-    margin=right_margin
+    # Customize the plot
+    fig.update_layout(
+        title=title,
+        xaxis_title='SNP Distance',
+        yaxis_title='DCJ-Indel Distance',
+        xaxis=dict(range=x_range) if x_range else None,
+        legend_title_text='Replicon Type'
+    )
+
+    # Save the plot as an HTML file
+    pio.write_html(fig, file=os.path.join(output_folder, file_name), auto_open=False)
+
+# PLOT 1: Full range plot
+fig1 = go.Figure()
+create_plot(
+    fig=fig1,
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Replicon Type',
+    file_name='all_subcommunities_Replicon.html'
 )
 
-# Save the full range plot as an HTML file
-full_range_html = os.path.join(output_folder, 'all_subcommunities_Inc.html')
-pio.write_html(fig, file=full_range_html, auto_open=False)
-
-## PLOT 2 ##
-# Create the figure for zoomed in plot
-fig = go.Figure()
-
-# Plot all data points for each subcommunity with limited x-axis
-for _, row in non_community_0_df.iterrows():
-    if pd.isna(row['overall_SNPs']) or pd.isna(row['distance']) or pd.isna(row['size_1_norm']) or pd.isna(row['size_2_norm']):
-        continue
-
-    if row['overall_SNPs'] > 0.5:
-        continue
-
-    hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Rep Type: {row['plasmid_2_mobtyper_rep_type(s)']}"
-    hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Rep Type: {row['plasmid_1_mobtyper_rep_type(s)']}"
-
-    fig.add_trace(go.Scatter(
-        x=[row['overall_SNPs']],
-        y=[row['distance']],
-        mode='markers',
-        marker=dict(size=row['size_2_norm'] * 0.1, color=color_dict.get(row['plasmid_2_mobtyper_rep_type(s)'], 'grey'), symbol='triangle-up', line=dict(width=1, color='black')),
-        name=row['plasmid_2_mobtyper_rep_type(s)'],
-        hovertext=hover_text_2,
-        showlegend=True
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=[row['overall_SNPs']],
-        y=[row['distance']],
-        mode='markers',
-        marker=dict(size=row['size_1_norm'] * 0.1, color=color_dict.get(row['plasmid_1_mobtyper_rep_type(s)'], 'grey'), symbol='circle', line=dict(width=1, color='black')),
-        name=row['plasmid_1_mobtyper_rep_type(s)'],
-        hovertext=hover_text_1,
-        showlegend=True
-    ))
-
-# Customize the plot
-fig.update_layout(
-    title='Scatter Plot of DCJ-indel Distance vs SNP Distance for all Subcommunities Replicon Types',
-    xaxis_title='SNP Distance',
-    yaxis_title='DCJ-indel Distance',
-    xaxis=dict(range=[0, 0.5]),
-    legend_title_text='Replicon Types',
-    legend=legend_layout,
-    margin=right_margin
+# PLOT 2: Limited x-axis plot (SNP Distance ≤ 2)
+fig2 = go.Figure()
+create_plot(
+    fig=fig2,
+    x_range=[0, 2],
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Replicon Type (SNP Distance ≤ 2)',
+    file_name='all_subcommunities_Replicon_0_to_2.html'
 )
 
-# Save the full range plot as an HTML file
-full_range_html = os.path.join(output_folder, 'all_subcommunities_Inc_0.5.html')
-pio.write_html(fig, file=full_range_html, auto_open=False)
+# PLOT 3: Limited x-axis plot (SNP Distance ≤ 50)
+fig3 = go.Figure()
+create_plot(
+    fig=fig3,
+    x_range=[0, 50],
+    title='Scatter Plot of Distance vs SNP Distance for all Subcommunities by Replicon Type (SNP Distance ≤ 50)',
+    file_name='all_subcommunities_Replicon_0_to_50.html'
+)
 
 print(f"Plots have been saved as HTML files in the '{output_folder}' directory.")
