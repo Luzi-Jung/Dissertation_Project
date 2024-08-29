@@ -1,0 +1,80 @@
+#Make graphs
+#make outer dot plasmid_1 subcommunity colour and inner triangle plasmid_2 subcommunity colour
+#SNPs distance vs distance, for each plasmid_1_community, marker is made of plasmid_1_mobtyper_size and plasmid_2_mobtyper_size
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+# Read the CSV file
+non_community_0_df = pd.read_csv('non_community_0_df.csv')
+
+# Get unique subcommunities
+subcommunities = non_community_0_df[['plasmid_1_subcommunity', 'plasmid_2_subcommunity']].melt()['value'].unique()
+
+# Delete rows where plasmid_1_subcommunity and plasmid_2_subcommunity don't match
+non_community_0_df = non_community_0_df[non_community_0_df['plasmid_1_subcommunity'] == non_community_0_df['plasmid_2_subcommunity']]
+
+# Create a color map for subcommunities using Viridis
+cmap = plt.get_cmap('viridis', len(subcommunities))
+color_dict = {subcommunity: cmap(i) for i, subcommunity in enumerate(subcommunities)}
+
+# Normalize sizes using P1_mobtyper_size (kb) and P2_mobtyper_size (kb)
+non_community_0_df['size_1_norm'] = 200 * (non_community_0_df['plasmid_1_mobtyper_size'] - non_community_0_df['plasmid_1_mobtyper_size'].min()) / (non_community_0_df['plasmid_1_mobtyper_size'].max() - non_community_0_df['plasmid_1_mobtyper_size'].min()) + 50
+non_community_0_df['size_2_norm'] = 200 * (non_community_0_df['plasmid_2_mobtyper_size'] - non_community_0_df['plasmid_2_mobtyper_size'].min()) / (non_community_0_df['plasmid_2_mobtyper_size'].max() - non_community_0_df['plasmid_2_mobtyper_size'].min()) + 50
+
+# Create a new folder for saving plots
+output_folder = 'subcommunity_plots'
+os.makedirs(output_folder, exist_ok=True)
+
+# Loop through each subcommunity and create a scatter plot
+for subcommunity in subcommunities:
+    subcommunity_df = non_community_0_df[(non_community_0_df['plasmid_1_subcommunity'] == subcommunity) | (non_community_0_df['plasmid_2_subcommunity'] == subcommunity)]
+    
+    if subcommunity_df.empty:
+        print(f"No data for subcommunity: {subcommunity}")
+        continue
+    
+    # Create the figure and axis
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    valid_points = False  # Flag to check if there are valid points
+
+    # Create the scatter plot
+    for _, row in subcommunity_df.iterrows():
+        if pd.isna(row['SNPs distance']) or pd.isna(row['community_score']) or pd.isna(row['size_1_norm']) or pd.isna(row['size_2_norm']):
+            continue
+
+        valid_points = True
+
+        size_1 = row['size_1_norm']
+        size_2 = row['size_2_norm']
+
+        # Plot the marker for plasmid_1_subcommunity
+        if row['plasmid_1_subcommunity'] == subcommunity:
+            ax.scatter(
+                row['SNPs distance'], row['community_score'],
+                s=size_1, alpha=0.6, edgecolors='black', linewidths=0.2, marker='o'
+            )
+        # Plot the marker for plasmid_2_subcommunity
+        if row['plasmid_2_subcommunity'] == subcommunity:
+            ax.scatter(
+                row['SNPs distance'], row['community_score'],
+                s=size_2, alpha=0.6, edgecolors='black', linewidths=0.2, marker='^'
+            )
+    
+    if not valid_points:
+        print(f"No valid data points for subcommunity: {subcommunity}")
+        plt.close()
+        continue
+
+    # Customize the plot
+    ax.set_title(f'Scatter Plot of DCJ-indel distance vs SNP distance for {subcommunity}')
+    ax.set_xlabel('SNP distance')
+    ax.set_ylabel('DCJ-indel distance')
+
+    # Save the plot as an individual .png file
+    plot_filename = os.path.join(output_folder, f'{subcommunity}.pdf')
+    plt.tight_layout()
+    plt.savefig(plot_filename)
+    plt.close()  # Close the plot to avoid displaying it and free memory
