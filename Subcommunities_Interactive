@@ -92,8 +92,8 @@ for _, row in non_community_0_df.iterrows():
     if row['overall_SNPs'] > 0.5:
         continue
 
-    hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Rep Type: {row['plasmid_2_mobtyper_rep_type(s)']}"
-    hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Rep Type: {row['plasmid_1_mobtyper_rep_type(s)']}"
+    hover_text_2 = f"Subcommunity: {row['plasmid_2_subcommunity']}<br>Replicon Type: {row['plasmid_2_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_2_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_2_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_2_mobility']}"
+    hover_text_1 = f"Subcommunity: {row['plasmid_1_subcommunity']}<br>Replicon Type: {row['plasmid_1_mobtyper_rep_type(s)']}<br>Relaxase Type: {row['plasmid_1_mobtyper_relaxase_type(s)']}<br>oriT Type: {row['plasmid_1_mobtyper_orit_type(s)']}<br>Mobility Type: {row['plasmid_1_mobility']}"
 
     fig.add_trace(go.Scatter(
         x=[row['overall_SNPs']],
