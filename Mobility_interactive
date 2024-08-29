@@ -25,7 +25,7 @@ unique_mobility_types_2 = non_community_0_df['plasmid_2_mobility'].unique()
 unique_mobility_types = list(set(unique_mobility_types_1).union(set(unique_mobility_types_2)))
 
 # Create a color map for the unique mobility types using Plotly's Viridis color palette
-colors = plotly.colors.qualitative.Plotly
+colors = plotly.colors.sequential.Plotly
 color_dict = {mobility_type: colors[i % len(colors)] for i, mobility_type in enumerate(unique_mobility_types)}
 
 # Normalize sizes using P1_mobtyper_size (kb) and P2_mobtyper_size (kb)
@@ -133,7 +133,7 @@ fig.update_layout(
 )
 
 # Save the limited x-axis plot as an HTML file
-limited_x_html = os.path.join(output_folder, 'all_subcommunities_mobility_50.html')
+limited_x_html = os.path.join(output_folder, 'all_subcommunities_mobility_10.html')
 pio.write_html(fig, file=limited_x_html, auto_open=False)
 
 ## PLOT 3 ##
